@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "npm install && npm run build"
   publish = ".next"
 
 [[plugins]]
@@ -7,4 +7,5 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
 
