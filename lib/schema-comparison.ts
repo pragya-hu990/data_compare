@@ -186,7 +186,7 @@ function extractFieldsFromSchema(sqlContent: string): SchemaField[] {
     if (inTableDefinition && trimmed.startsWith(');')) {
       // Process any remaining field buffer
       if (currentFieldBuffer.trim()) {
-        const fieldMatch = currentFieldBuffer.match(/^\s*(\w+)\s+(.+?)(?:\s*,\s*$|\s*$)/s);
+        const fieldMatch = currentFieldBuffer.match(/^\s*(\w+)\s+([\s\S]+?)(?:\s*,\s*$|\s*$)/);
         if (fieldMatch) {
           const fieldName = fieldMatch[1];
           const fieldDef = fieldMatch[2].trim().replace(/,\s*$/, '');
@@ -266,7 +266,7 @@ function extractFieldsFromSchema(sqlContent: string): SchemaField[] {
         
         // If line ends with comma, process the accumulated buffer
         if (trimmed.endsWith(',')) {
-          const fieldMatch = currentFieldBuffer.match(/^\s*(\w+)\s+(.+?)(?:\s*,\s*$|\s*$)/s);
+          const fieldMatch = currentFieldBuffer.match(/^\s*(\w+)\s+([\s\S]+?)(?:\s*,\s*$|\s*$)/);
           if (fieldMatch) {
             const fieldName = fieldMatch[1];
             let fieldDef = fieldMatch[2].trim().replace(/,\s*$/, '');
