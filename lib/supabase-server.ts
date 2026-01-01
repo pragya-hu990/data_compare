@@ -1,14 +1,40 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Server-side Supabase client with service role key
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Lazy initialization function
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
+  // Return a mock client if env vars are missing (for build-time)
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.warn('⚠️ Supabase environment variables not set. Using mock client.');
+    // Return a mock client that won't break the build
+    return createClient('https://placeholder.supabase.co', 'placeholder-key', {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+// Server-side Supabase client with service role key (lazy initialized)
+let _supabaseAdmin: ReturnType<typeof getSupabaseClient> | null = null;
+
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof getSupabaseClient>, {
+  get(_target, prop) {
+    if (!_supabaseAdmin) {
+      _supabaseAdmin = getSupabaseClient();
+    }
+    return (_supabaseAdmin as any)[prop];
+  }
 });
 
 // =====================================================
@@ -78,12 +104,17 @@ export async function upsertFip(fipData: {
   fipId: string;
   fipName: string;
   code?: string;
-  enable?: string;
+  type?: string;
+  enable?: string | boolean;
   fiTypes?: string[];
   entityIconUri?: string;
   entityLogoUri?: string;
   entityLogoWithNameUri?: string;
   otpLength?: number;
+  supportEmail?: string;
+  supportPhone?: string;
+  environment?: string;
+  metadata?: any;
 }) {
   const { data: fip, error } = await supabaseAdmin
     .from('fips')
@@ -91,12 +122,17 @@ export async function upsertFip(fipData: {
       fip_id: fipData.fipId,
       fip_name: fipData.fipName,
       code: fipData.code,
-      enable: fipData.enable,
+      type: fipData.type || 'BANK', // Default to BANK if not specified
+      is_enabled: fipData.enable === 'true' || fipData.enable === true || fipData.enable === undefined,
       fi_types: fipData.fiTypes,
       entity_icon_uri: fipData.entityIconUri,
       entity_logo_uri: fipData.entityLogoUri,
       entity_logo_with_name_uri: fipData.entityLogoWithNameUri,
       otp_length: fipData.otpLength,
+      support_email: fipData.supportEmail,
+      support_phone: fipData.supportPhone,
+      environment: fipData.environment || 'SANDBOX',
+      metadata: fipData.metadata || { source: 'api' },
       updated_at: new Date().toISOString(),
     }, {
       onConflict: 'fip_id',
@@ -444,15 +480,14 @@ export async function getLatestSnapshot(uniqueIdentifier: string) {
 export async function upsertBrokers(brokersData: any[]) {
   if (!brokersData || !Array.isArray(brokersData)) return { saved: 0 };
 
-  // Map to database format
+  // Map to database format - match actual schema columns
   const records = brokersData.map(broker => ({
-    broker_id: String(broker.brokerId || broker.id || broker.brokerName),
+    broker_id: String(broker.brokerId || broker.id || broker.brokerName || `broker_${Date.now()}_${Math.random()}`),
     broker_name: broker.brokerName || broker.name || 'Unknown',
-    code: broker.code || null,
-    enable: broker.enable || 'true',
-    entity_icon_uri: broker.entityIconUri || broker.logo || null,
-    entity_logo_uri: broker.entityLogoUri || broker.logo || null,
-    updated_at: new Date().toISOString(),
+    broker_code: broker.code || broker.brokerCode || null,
+    logo_url: broker.logo || broker.entityLogoUri || broker.entityIconUri || null,
+    is_active: true,
+    metadata: broker.metadata || { source: 'api' },
   }));
 
   try {
@@ -812,16 +847,42 @@ export async function upsertAllFips(fipsData: any[]) {
   let saved = 0;
   for (const fip of fipsData) {
     try {
+      // Ensure fipId is always present
+      const fipId = fip.fipId || fip.id;
+      if (!fipId) {
+        console.warn('Skipping FIP with no fipId:', fip);
+        continue;
+      }
+
+      // Extract ALL fields from the API response
+      // Map all possible field variations to database columns
       await upsertFip({
-        fipId: fip.fipId || fip.id,
-        fipName: fip.fipName || fip.name,
-        code: fip.code,
-        enable: fip.enable,
-        fiTypes: fip.fiTypes,
-        entityIconUri: fip.entityIconUri,
-        entityLogoUri: fip.entityLogoUri,
-        entityLogoWithNameUri: fip.entityLogoWithNameUri,
-        otpLength: fip.otpLength,
+        fipId: fipId,
+        fipName: fip.fipName || fip.name || fip.fip_name || 'Unknown',
+        code: fip.code || fip.fipCode,
+        type: fip.type || fip.fipType || (fip.fiTypes && fip.fiTypes.length > 0 ? fip.fiTypes[0] : 'BANK') || 'BANK',
+        enable: fip.enable || fip.isEnabled || fip.is_enabled,
+        fiTypes: fip.fiTypes || fip.fi_types || fip.financialInstrumentTypes,
+        entityIconUri: fip.entityIconUri || fip.entity_icon_uri || fip.iconUri || fip.icon_uri,
+        entityLogoUri: fip.entityLogoUri || fip.entity_logo_uri || fip.logoUri || fip.logo_uri,
+        entityLogoWithNameUri: fip.entityLogoWithNameUri || fip.entity_logo_with_name_uri || fip.logoWithNameUri || fip.logo_with_name_uri,
+        otpLength: fip.otpLength || fip.otp_length || fip.otpLengthValue,
+        supportEmail: fip.supportEmail || fip.support_email || fip.email || fip.contactEmail || fip.contact_email,
+        supportPhone: fip.supportPhone || fip.support_phone || fip.phone || fip.contactPhone || fip.contact_phone || fip.mobile,
+        environment: fip.environment || fip.env || 'SANDBOX',
+        metadata: {
+          source: 'api',
+          rawData: fip, // Store ALL raw data
+          extractedAt: new Date().toISOString(),
+          // Include any other fields not mapped above
+          additionalFields: Object.keys(fip).reduce((acc: any, key: string) => {
+            const lowerKey = key.toLowerCase();
+            if (!['fipid', 'fipname', 'name', 'code', 'type', 'enable', 'fitypes', 'entityiconuri', 'entitylogouri', 'entitylogowithnameuri', 'otplength', 'supportemail', 'supportphone', 'environment'].includes(lowerKey)) {
+              acc[key] = fip[key];
+            }
+            return acc;
+          }, {}),
+        },
       });
       saved++;
     } catch (e) {

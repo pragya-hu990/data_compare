@@ -2,6 +2,24 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 
 export async function GET() {
+  // Check if Supabase is configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return NextResponse.json({
+      summary: {
+        populated: 0,
+        empty: 0,
+        missing: 0,
+        total: 0,
+        message: 'Supabase not configured. Environment variables missing.',
+      },
+      tables: [],
+      sampleData: {},
+    });
+  }
+
   const tables = [
     // Layer A
     { name: 'app_users', layer: 'A' },
