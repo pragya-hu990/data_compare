@@ -4,10 +4,6 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { ComparisonResult, FieldComparison } from '@/lib/schema-comparison';
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 export default function SchemaComparisonPage() {
   const [comparisonData, setComparisonData] = useState<ComparisonResult | null>(null);
   const [loading, setLoading] = useState(true);
