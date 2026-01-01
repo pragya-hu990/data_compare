@@ -8,4 +8,11 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Ensure all routes are accessible
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
