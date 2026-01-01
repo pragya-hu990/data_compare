@@ -292,6 +292,13 @@ curl -s -X DELETE http://localhost:3000/api/test/full-flow | jq '.status'`;
             </div>
             <div className="flex gap-3">
               <Link
+                href="/schema-comparison"
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg font-semibold transition-all flex items-center gap-2"
+              >
+                <span>🔍</span>
+                Schema Comparison
+              </Link>
+              <Link
                 href="/live-tester"
                 className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 rounded-lg font-semibold transition-all flex items-center gap-2"
               >
